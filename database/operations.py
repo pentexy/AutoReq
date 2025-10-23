@@ -1,8 +1,7 @@
-from pymongo import MongoClient, ReturnDocument
+from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
-from .models import Chat, Request
-from config import config
 from datetime import datetime
+from config import config
 
 class MongoDB:
     def __init__(self):
@@ -17,37 +16,37 @@ class MongoDB:
 
     def add_chat(self, chat_data):
         try:
-            chat = Chat(chat_data)
-            result = self.chats.insert_one(chat.to_dict())
+            chat_data['added_date'] = datetime.utcnow()
+            result = self.chats.insert_one(chat_data)
             return result.inserted_id
         except DuplicateKeyError:
             return None
 
     def get_chat(self, chat_id):
-        chat_data = self.chats.find_one({"chat_id": str(chat_id)})
-        return Chat(chat_data) if chat_data else None
+        return self.chats.find_one({"chat_id": str(chat_id)})
 
     def get_all_chats(self):
-        return [Chat(chat) for chat in self.chats.find()]
+        return list(self.chats.find())
+
+    def get_chats_by_type(self, chat_type):
+        return list(self.chats.find({"chat_type": chat_type}))
 
     def update_chat_stats(self, chat_id, stats_update):
-        return self.chats.find_one_and_update(
+        return self.chats.update_one(
             {"chat_id": str(chat_id)},
-            {"$set": stats_update},
-            return_document=ReturnDocument.AFTER
+            {"$set": stats_update}
         )
 
     def add_request(self, request_data):
-        request = Request(request_data)
-        result = self.requests.insert_one(request.to_dict())
+        request_data['request_date'] = datetime.utcnow()
+        result = self.requests.insert_one(request_data)
         return result.inserted_id
 
     def get_pending_requests(self, chat_id):
-        pending = list(self.requests.find({
+        return list(self.requests.find({
             "chat_id": str(chat_id),
             "status": "pending"
         }))
-        return [Request(req) for req in pending]
 
     def update_request_status(self, chat_id, user_id, status):
         update_data = {"status": status}
@@ -75,3 +74,6 @@ class MongoDB:
             "pending_requests": pending,
             "accepted_requests": accepted
         }
+
+# Global instance
+db = MongoDB()
