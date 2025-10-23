@@ -34,8 +34,9 @@ class PromotionService:
             except Exception as e:
                 print(f"Error checking userbot status: {e}")
             
-            # Define admin rights for Aiogram
+            # Define admin rights for Aiogram (with all required fields)
             rights = ChatAdministratorRights(
+                # Basic permissions
                 can_change_info=False,
                 can_delete_messages=True,
                 can_invite_users=True,
@@ -44,10 +45,22 @@ class PromotionService:
                 can_manage_chat=True,
                 can_manage_video_chats=True,
                 is_anonymous=False,
-                can_manage_voice_chats=True,
+                
+                # Message permissions
                 can_post_messages=False,
                 can_edit_messages=False,
-                can_pin_messages=True
+                can_pin_messages=True,
+                
+                # Voice chat permissions
+                can_manage_voice_chats=True,
+                
+                # Story permissions (required in newer Aiogram versions)
+                can_post_stories=False,
+                can_edit_stories=False,
+                can_delete_stories=False,
+                
+                # Other permissions
+                can_manage_topics=False
             )
             
             # Promote userbot
