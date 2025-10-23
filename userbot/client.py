@@ -1,7 +1,5 @@
 from telethon import TelegramClient
-from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.functions.messages import GetFullChatRequest
-from telethon.tl.types import Channel, Chat
+from telethon.sessions import StringSession
 import asyncio
 from config import config
 
@@ -17,7 +15,7 @@ class UserBotClient:
         
         try:
             self.client = TelegramClient(
-                session=config.SESSION_STRING,
+                session=StringSession(config.SESSION_STRING),
                 api_id=config.API_ID,
                 api_hash=config.API_HASH
             )
@@ -40,14 +38,6 @@ class UserBotClient:
         except Exception as e:
             print(f"Error accepting request: {e}")
             return False
-    
-    async def get_chat_info(self, chat_id: int):
-        try:
-            chat = await self.client.get_entity(chat_id)
-            return chat
-        except Exception as e:
-            print(f"Error getting chat info: {e}")
-            return None
 
 # Global instance
 userbot_client = UserBotClient()
