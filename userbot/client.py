@@ -1,7 +1,7 @@
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import InviteToChannelRequest, EditAdminRequest, GetParticipantsRequest, JoinChannelRequest, GetFullChannelRequest
-from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest, GetFullChatRequest
+from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest, GetFullChatRequest, HideChatJoinRequestRequest
 from telethon.tl.types import ChatAdminRights, InputPeerChannel, ChannelParticipantsRecent
 from telethon.errors import ChannelPrivateError, UserAlreadyParticipantError, FloodWaitError, InviteHashExpiredError, InviteHashInvalidError
 from telethon.tl.types import PeerChannel, InputChannel, Channel, ChatInvite, ChatInviteAlready
@@ -117,52 +117,41 @@ class UserBotClient:
             print(f"Userbot cannot access channel {chat_id}: {e}")
             return False
 
-  async def accept_join_request(self, chat_id: int, user_id: int):
-    """Accept join request in channel using proper Telethon method"""
-    if not self.is_connected:
-        return False
-    
-    try:
-        # Get chat entity
-        chat_entity = await self.client.get_entity(chat_id)
+    async def accept_join_request(self, chat_id: int, user_id: int):
+        """Accept join request using the correct Telethon API method"""
+        if not self.is_connected:
+            return False
         
-        # Use the proper method for approving join requests
-        from telethon.tl.functions.channels import EditChatDefaultBannedRightsRequest
-        from telethon.tl.types import ChatBannedRights
-        
-        # Instead of trying to get user entity, use the user_id directly
-        # The proper way is to use the specific method for approving join requests
         try:
-            # First try the specific approve method
-            from telethon.tl.functions.messages import HideChatJoinRequestRequest
+            # Get chat entity
+            chat_entity = await self.client.get_entity(chat_id)
+            
+            # Use the correct method for approving join requests
             await self.client(HideChatJoinRequestRequest(
                 peer=chat_entity,
                 user_id=user_id,
                 approved=True
             ))
+            
             print(f"Join request approved for {user_id} in {chat_id}")
             return True
-        except Exception as e:
-            print(f"HideChatJoinRequest failed: {e}")
             
-            # Fallback: Try to add user directly to channel
+        except Exception as e:
+            print(f"Error accepting join request: {e}")
+            
+            # If the specific method fails, try the alternative approach
             try:
-                from telethon.tl.functions.channels import InviteToChannelRequest
-                # Get user entity using the user_id
+                # Alternative: Add user directly to the channel
                 user_entity = await self.client.get_input_entity(user_id)
                 await self.client(InviteToChannelRequest(
                     channel=chat_entity,
                     users=[user_entity]
                 ))
-                print(f"User {user_id} added to channel {chat_id}")
+                print(f"User {user_id} added to channel {chat_id} (alternative method)")
                 return True
             except Exception as e2:
-                print(f"InviteToChannel also failed: {e2}")
+                print(f"Alternative method also failed: {e2}")
                 return False
-                
-    except Exception as e:
-        print(f"Error accepting join request: {e}")
-        return False
 
     async def setup_channel(self, chat_id: int, invite_link: str = None):
         """Join channel only - promotion will be done by bot"""
