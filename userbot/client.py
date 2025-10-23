@@ -117,35 +117,36 @@ class UserBotClient:
             print(f"Userbot cannot access channel {chat_id}: {e}")
             return False
 
-    async def accept_join_request(self, chat_id: int, user_id: int):
-        """Accept join request in channel"""
-        if not self.is_connected:
-            return False
+  async def accept_join_request(self, chat_id: int, user_id: int):
+    """Accept join request in channel"""
+    if not self.is_connected:
+        return False
+    
+    try:
+        # Get entity
+        entity = await self.client.get_entity(chat_id)
         
-        try:
-            # Get entity
-            entity = await self.client.get_entity(chat_id)
-            
-            # For channels, approve the join request
-            await self.client.edit_permissions(
-                entity,
-                user_id,
-                view_messages=True,
-                send_messages=True,
-                send_media=True,
-                send_stickers=True,
-                send_gifs=True,
-                send_games=True,
-                send_inline=True,
-                embed_links=True
-            )
-            
-            print(f"Join request accepted for {user_id} in {chat_id}")
-            return True
-            
-        except Exception as e:
-            print(f"Error accepting join request: {e}")
-            return False
+        # For channels, approve the join request with correct parameters
+        # Use only the parameters that Aiogram supports
+        await self.client.edit_permissions(
+            entity,
+            user_id,
+            view_messages=True,
+            send_messages=True,
+            send_media=True,
+            send_stickers=True,
+            send_gifs=True,
+            send_games=True,
+            send_inline=True
+            # embed_links is not supported in Aiogram
+        )
+        
+        print(f"Join request accepted for {user_id} in {chat_id}")
+        return True
+        
+    except Exception as e:
+        print(f"Error accepting join request: {e}")
+        return False
 
     async def setup_channel(self, chat_id: int, invite_link: str = None):
         """Join channel only - promotion will be done by bot"""
