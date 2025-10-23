@@ -6,7 +6,10 @@ from database.operations import db
 from userbot.client import userbot_client
 from utils.logger import Logger
 from config import config
+from services.promotion import promotion_service  # ADD THIS LINE
 import asyncio
+
+router = Router()
 
 router = Router()
 
