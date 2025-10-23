@@ -34,9 +34,11 @@ class PromotionService:
             except Exception as e:
                 print(f"Error checking userbot status: {e}")
             
-            # Define admin rights for Aiogram (with all required fields)
-            rights = ChatAdministratorRights(
-                # Basic permissions
+            # For Aiogram, we use individual parameters instead of rights object
+            # Promote userbot with specific permissions
+            await self.bot.promote_chat_member(
+                chat_id=chat_id,
+                user_id=userbot_user_id,
                 can_change_info=False,
                 can_delete_messages=True,
                 can_invite_users=True,
@@ -44,30 +46,14 @@ class PromotionService:
                 can_promote_members=False,
                 can_manage_chat=True,
                 can_manage_video_chats=True,
-                is_anonymous=False,
-                
-                # Message permissions
+                can_manage_voice_chats=True,
                 can_post_messages=False,
                 can_edit_messages=False,
                 can_pin_messages=True,
-                
-                # Voice chat permissions
-                can_manage_voice_chats=True,
-                
-                # Story permissions (required in newer Aiogram versions)
                 can_post_stories=False,
                 can_edit_stories=False,
                 can_delete_stories=False,
-                
-                # Other permissions
                 can_manage_topics=False
-            )
-            
-            # Promote userbot
-            await self.bot.promote_chat_member(
-                chat_id=chat_id,
-                user_id=userbot_user_id,
-                rights=rights
             )
             
             # Set custom title
@@ -112,6 +98,29 @@ class PromotionService:
             
         except Exception as e:
             return False, f"Error checking permissions: {e}"
+    
+    async def get_bot_permissions_in_channel(self, chat_id: int):
+        """Get detailed bot permissions in a specific channel"""
+        try:
+            bot_member = await self.bot.get_chat_member(chat_id, self.bot.id)
+            
+            permissions_info = f"Bot status: {bot_member.status}\n"
+            
+            if bot_member.status == ChatMemberStatus.ADMINISTRATOR:
+                permissions_info += "Admin permissions:\n"
+                permissions_info += f"- Promote members: {bot_member.can_promote_members}\n"
+                permissions_info += f"- Invite users: {bot_member.can_invite_users}\n"
+                permissions_info += f"- Delete messages: {bot_member.can_delete_messages}\n"
+                permissions_info += f"- Restrict members: {bot_member.can_restrict_members}\n"
+                permissions_info += f"- Pin messages: {bot_member.can_pin_messages}\n"
+                permissions_info += f"- Manage chat: {bot_member.can_manage_chat}\n"
+            else:
+                permissions_info += "Bot is not an administrator\n"
+            
+            return permissions_info
+            
+        except Exception as e:
+            return f"Error getting permissions: {e}"
 
 # Global instance
 promotion_service = None
