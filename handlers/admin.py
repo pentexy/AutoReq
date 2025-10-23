@@ -56,6 +56,44 @@ Select an option below to manage:
         parse_mode=ParseMode.HTML
     )
 
+@router.message(Command("channel_info"))
+async def channel_info_handler(message: Message):
+    """Check channel information and userbot status"""
+    user_id = message.from_user.id
+    
+    # Get user's channels
+    user_channels = list(db.chats.find({
+        "added_by": user_id,
+        "chat_type": "channel"
+    }))
+    
+    if not user_channels:
+        await message.answer("❌ No channels found in your account.")
+        return
+    
+    text = "<b>📊 Your Channels Status</b>\n\n"
+    
+    for channel in user_channels:
+        chat_id = int(channel['chat_id'])
+        
+        # Get channel info from userbot
+        channel_info = await userbot_client.get_channel_info(chat_id) if userbot_client.is_connected else None
+        
+        text += f"<b>📺 {channel['title']}</b>\n"
+        text += f"ID: <code>{channel['chat_id']}</code>\n"
+        text += f"Setup: {'✅' if channel.get('userbot_setup') else '❌'}\n"
+        text += f"Active: {'✅' if channel.get('is_active', True) else '❌'}\n"
+        
+        if channel_info:
+            text += f"Participants: {channel_info.get('participants_count', 'Unknown')}\n"
+            text += f"Type: {'Broadcast' if channel_info.get('broadcast') else 'Group'}\n"
+        else:
+            text += f"Status: ❌ Cannot access\n"
+        
+        text += "\n"
+    
+    await message.answer(text, parse_mode=ParseMode.HTML)
+
 @router.message(Command("db"))
 async def db_handler(message: Message):
     """Owner-only full database management"""
