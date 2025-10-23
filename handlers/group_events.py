@@ -116,6 +116,122 @@ I've been successfully added to your {chat_type} and saved in my database.
         print(f"❌ Error in bot_added_to_chat: {e}")
         await Logger.log_error(f"Bot added to chat error: {e}")
 
+# Handler for when bot is added to group/channel
+@router.my_chat_member(ChatMemberUpdatedFilter(IS_NOT_MEMBER >> IS_MEMBER))
+async def bot_added_to_chat(event: ChatMemberUpdated):
+    try:
+        chat = event.chat
+        user = event.from_user
+        
+        print(f"🤖 Bot added to {chat.title} (ID: {chat.id}) by {user.id}")
+        
+        # Determine chat type
+        if chat.type in ["group", "supergroup"]:
+            chat_type = "group"
+        elif chat.type == "channel":
+            chat_type = "channel"
+        else:
+            return
+        
+        # Create invite link for the chat
+        invite_link = None
+        try:
+            # Create a new invite link that doesn't require admin approval
+            invite = await event.bot.create_chat_invite_link(
+                chat.id, 
+                name="AutoReq UserBot Join",
+                creates_join_request=False,  # Direct join, no approval needed
+                expire_date=None,  # Never expire
+                member_limit=1  # Single use
+            )
+            invite_link = invite.invite_link
+            print(f"🔗 Created invite link: {invite_link}")
+        except Exception as e:
+            print(f"❌ Could not create invite link: {e}")
+            # Try to get existing invite link
+            try:
+                chat_info = await event.bot.get_chat(chat.id)
+                invite_link = chat_info.invite_link
+                if invite_link:
+                    print(f"🔗 Using existing invite link: {invite_link}")
+            except Exception as e2:
+                print(f"❌ Could not get existing invite link: {e2}")
+        
+        # Save to database
+        chat_data = {
+            "chat_id": str(chat.id),
+            "title": chat.title,
+            "chat_type": chat_type,
+            "added_by": user.id,
+            "invite_link": invite_link,
+            "is_active": True,
+            "userbot_setup": False
+        }
+        
+        result = db.add_chat(chat_data)
+        
+        if result:
+            print(f"✅ Chat {chat.title} saved to database")
+            
+            # If it's a channel, setup userbot
+            if chat_type == "channel" and userbot_client.is_connected and invite_link:
+                print(f"🔄 Setting up userbot for channel {chat.id}")
+                setup_success = await userbot_client.setup_channel(chat.id, invite_link)
+                
+                # Update database with setup status
+                db.chats.update_one(
+                    {"chat_id": str(chat.id)},
+                    {"$set": {"userbot_setup": setup_success}}
+                )
+                
+                if setup_success:
+                    print(f"✅ Userbot setup completed for {chat.title}")
+                else:
+                    print(f"❌ Userbot setup failed for {chat.title}")
+            
+            # Send DM to user who added bot
+            try:
+                dm_text = f"""
+<b>✅ Bot Added Successfully!</b>
+
+<b>Chat:</b> {chat.title}
+<b>Type:</b> {chat_type}
+<b>ID:</b> {chat.id}
+"""
+                if chat_type == "channel":
+                    if userbot_client.is_connected:
+                        if invite_link:
+                            dm_text += f"\n<b>Userbot Status:</b> {'✅ Setup Complete' if setup_success else '🔄 Setup in progress'}"
+                        else:
+                            dm_text += f"\n<b>Userbot Status:</b> ❌ No invite link"
+                    else:
+                        dm_text += f"\n<b>Userbot Status:</b> ❌ Not Connected"
+                
+                dm_text += f"\n\nUse <code>/manage</code> to control your chats."
+                
+                if chat_type == "channel" and not setup_success and userbot_client.is_connected:
+                    dm_text += f"\n\n⚠️ Userbot setup failed. Use <code>/setup</code> to retry."
+                
+                await event.bot.send_message(
+                    user.id,
+                    dm_text,
+                    parse_mode=ParseMode.HTML
+                )
+                print(f"✅ DM sent to {user.id}")
+            except Exception as e:
+                print(f"❌ Could not send DM to {user.id}: {e}")
+            
+            # Log to owner
+            await Logger.log_to_owner(
+                f"Bot added to {chat.title} ({chat_type}) by {user.id}\nSetup: {'✅ Success' if chat_type != 'channel' or setup_success else '❌ Failed'}"
+            )
+        else:
+            print(f"❌ Failed to save chat {chat.title} to database")
+            
+    except Exception as e:
+        print(f"❌ Error in bot_added_to_chat: {e}")
+        await Logger.log_error(f"Bot added to chat error: {e}")
+
 # Handler for join requests (for channels)
 @router.chat_join_request()
 async def chat_join_request_handler(update: ChatMemberUpdated):
