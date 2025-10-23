@@ -25,6 +25,31 @@ View and manage all groups/channels where I'm added.
         parse_mode=ParseMode.HTML
     )
 
+@router.message(Command("debug"))
+async def debug_handler(message: Message):
+    if message.from_user.id != config.OWNER_ID:
+        return
+    
+    all_chats = db.get_all_chats()
+    total_chats = len(all_chats)
+    active_chats = len([c for c in all_chats if c.get('is_active', True)])
+    
+    debug_text = f"""
+<b>🔧 Debug Information</b>
+
+<b>Total Chats in DB:</b> {total_chats}
+<b>Active Chats:</b> {active_chats}
+<b>Bot Status:</b> ✅ Running
+<b>Userbot Status:</b> {'✅ Connected' if userbot_client.is_connected else '❌ Disconnected'}
+
+<b>Recent Chats:</b>
+"""
+    
+    for chat in all_chats[-5:]:  # Show last 5 chats
+        debug_text += f"• {chat['title']} ({chat['chat_type']})\n"
+    
+    await message.answer(debug_text, parse_mode=ParseMode.HTML)
+
 @router.message(Command("stats"))
 async def stats_handler(message: Message):
     if message.from_user.id != config.OWNER_ID:
