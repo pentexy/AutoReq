@@ -123,6 +123,66 @@ async def chat_join_request_handler(update: ChatMemberUpdated):
         chat = update.chat
         user = update.from_user
         
+        print(f"📨 Join request from {user.id} in {chat.title} (ID: {chat.id})")
+        
+        # Save request to database
+        request_data = {
+            "chat_id": str(chat.id),
+            "user_id": user.id,
+            "username": user.username or "",
+            "first_name": user.first_name or "",
+            "status": "pending"
+        }
+        
+        db.add_request(request_data)
+        
+        # Update chat stats
+        stats = db.get_chat_stats(str(chat.id))
+        db.update_chat_stats(str(chat.id), {
+            "total_requests": stats["total_requests"] + 1,
+            "pending_requests": stats["pending_requests"] + 1
+        })
+        
+        # Auto-accept if chat is active and userbot is setup
+        chat_data = db.get_chat(str(chat.id))
+        if (chat_data and chat_data.get('is_active', True) and 
+            chat_data.get('userbot_setup', False) and
+            userbot_client.is_connected):
+            
+            print(f"🔄 Auto-accepting join request for {user.id} in {chat.id}")
+            
+            # Add small delay to ensure everything is ready
+            await asyncio.sleep(1)
+            
+            success = await userbot_client.accept_join_request(chat.id, user.id)
+            
+            if success:
+                db.update_request_status(str(chat.id), user.id, "accepted")
+                # Update stats
+                stats = db.get_chat_stats(str(chat.id))
+                db.update_chat_stats(str(chat.id), {
+                    "pending_requests": stats["pending_requests"] - 1,
+                    "accepted_requests": stats["accepted_requests"] + 1
+                })
+                await Logger.log_request_accepted(chat.title, user.username or user.first_name)
+                print(f"✅ Request accepted for {user.id} in {chat.id}")
+            else:
+                print(f"❌ Failed to accept request for {user.id} in {chat.id}")
+        else:
+            reason = "inactive chat" if not chat_data or not chat_data.get('is_active', True) else "userbot not setup" if not chat_data.get('userbot_setup', False) else "userbot not connected"
+            print(f"⏸️  Auto-accept disabled for {chat.title} - {reason}")
+        
+    except Exception as e:
+        print(f"❌ Join request error in {chat.id}: {e}")
+        await Logger.log_error(f"Join request error: {e}")
+
+# Handler for join requests (for channels)
+@router.chat_join_request()
+async def chat_join_request_handler(update: ChatMemberUpdated):
+    try:
+        chat = update.chat
+        user = update.from_user
+        
         print(f"📨 Join request from {user.id} in {chat.title}")
         
         # Save request to database
