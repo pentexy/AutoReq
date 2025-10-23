@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables first
+load_dotenv()
 from pyrogram import Client, filters
 from pyrogram.types import ChatJoinRequest, Message
 from config import config
