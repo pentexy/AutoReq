@@ -6,6 +6,7 @@ from database.operations import db
 from ui.buttons import ButtonManager
 from userbot.client import userbot_client
 from config import config
+from services.promotion import promotion_service
 import asyncio
 
 router = Router()
