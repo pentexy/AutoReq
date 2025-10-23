@@ -48,40 +48,28 @@ async def check_promotion_handler(message: Message):
     """Check if promotion service is working"""
     if promotion_service:
         await message.answer("✅ Promotion service is working")
-        
-        # Test with current chat
-        try:
-            chat_member = await bot.get_chat_member(message.chat.id, bot.id)
-            if chat_member.status == ChatMemberStatus.ADMINISTRATOR:
-                await message.answer("✅ Bot is admin in this chat")
-            else:
-                await message.answer("❌ Bot is NOT admin in this chat")
-        except Exception as e:
-            await message.answer(f"❌ Error checking admin status: {e}")
     else:
         await message.answer("❌ Promotion service is not available")
 
-@dp.message(Command("promote_test"))
-async def promote_test_handler(message: Message):
-    """Test promotion in current chat"""
-    if not promotion_service:
-        await message.answer("❌ Promotion service not available")
-        return
-    
-    # Get userbot info
-    userbot_info = await userbot_client.get_userbot_info()
-    if not userbot_info:
-        await message.answer("❌ Could not get userbot info")
-        return
-    
-    await message.answer(f"Testing promotion for userbot {userbot_info['id']}...")
-    
-    success = await promotion_service.promote_userbot(message.chat.id, userbot_info['id'])
-    
-    if success:
-        await message.answer("✅ Promotion test successful!")
-    else:
-        await message.answer("❌ Promotion test failed")
+@dp.message(Command("help"))
+async def help_handler(message: Message):
+    """Show available commands"""
+    help_text = """
+<b>Available Commands:</b>
+
+<code>/start</code> - Start the bot
+<code>/manage</code> - Manage your groups and channels
+<code>/setup</code> - Setup userbot in your channels
+<code>/db</code> - Database management (Owner only)
+<code>/stats</code> - Bot statistics (Owner only)
+<code>/debug</code> - Debug information (Owner only)
+
+<code>/check_permissions CHANNEL_ID</code> - Check bot permissions
+<code>/manual_promote CHANNEL_ID</code> - Manually promote userbot
+<code>/channel_info</code> - Check channel status
+<code>/userbot_info</code> - Get userbot information
+"""
+    await message.answer(help_text, parse_mode=ParseMode.HTML)
 
 async def main():
     print("🚀 Starting Auto Request Acceptor Bot...")
@@ -92,6 +80,7 @@ async def main():
     # Start main bot
     try:
         await dp.start_polling(bot)
+        print("✅ Bot started successfully")
     except Exception as e:
         print(f"❌ Bot error: {e}")
     finally:
