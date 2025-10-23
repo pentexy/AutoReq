@@ -1,39 +1,32 @@
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from aiogram import Router, F
+from aiogram.types import Message
+from aiogram.filters import Command
 from ui.buttons import ButtonManager
 from utils.logger import Logger
 from config import config
-import logging
 
-logger = logging.getLogger(__name__)
+router = Router()
 
-@Client.on_message(filters.command("start") & filters.private)
-async def start_handler(client: Client, message: Message):
+@router.message(Command("start"))
+async def start_handler(message: Message):
     user_id = message.from_user.id
     
-    logger.info(f"Start command received from {user_id}")
-    
-    if len(message.command) > 1:
-        # Handle deep linking
-        pass
-    
     welcome_text = """
-**Auto Request Acceptor Bot**
+ **Auto Request Acceptor Bot**
 
 Add me to your group/channel and make me admin with:
-- Manage Chat permission
-- Invite Users via link permission
+• Manage Chat permission
+• Invite Users via link permission
 
 I will automatically accept join requests and log everything.
 """
     
-    await message.reply_text(
+    await message.answer(
         welcome_text,
         reply_markup=ButtonManager.start_button()
     )
     
     # Log to owner
     await Logger.log_to_owner(
-        client,
-        f"User started bot: {message.from_user.mention}\nID: {user_id}"
+        f"User started bot: {message.from_user.full_name}\nID: {user_id}"
     )
