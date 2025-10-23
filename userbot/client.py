@@ -1,6 +1,9 @@
-from pyrogram import Client
-from config import config
+from telethon import TelegramClient
+from telethon.tl.functions.channels import GetFullChannelRequest
+from telethon.tl.functions.messages import GetFullChatRequest
+from telethon.tl.types import Channel, Chat
 import asyncio
+from config import config
 
 class UserBotClient:
     def __init__(self):
@@ -8,45 +11,43 @@ class UserBotClient:
         self.is_connected = False
     
     async def start(self):
-        if not config.USERBOT_SESSION:
+        if not config.SESSION_STRING:
+            print("❌ No userbot session configured")
             return False
         
         try:
-            self.client = Client(
-                "userbot",
+            self.client = TelegramClient(
+                session=config.SESSION_STRING,
                 api_id=config.API_ID,
-                api_hash=config.API_HASH,
-                session_string=config.USERBOT_SESSION
+                api_hash=config.API_HASH
             )
             
             await self.client.start()
             self.is_connected = True
+            print("✅ Userbot started successfully")
             return True
         except Exception as e:
-            print(f"Userbot failed to start: {e}")
+            print(f"❌ Userbot failed to start: {e}")
             return False
     
-    async def accept_chat_join_request(self, chat_id: str, user_id: int):
+    async def accept_join_request(self, chat_id: int, user_id: int):
         if not self.is_connected:
             return False
         
         try:
-            await self.client.approve_chat_join_request(chat_id, user_id)
+            await self.client.approve_join_request(chat_id, user_id)
             return True
         except Exception as e:
             print(f"Error accepting request: {e}")
             return False
     
-    async def join_chat(self, invite_link: str):
-        if not self.is_connected:
-            return False
-        
+    async def get_chat_info(self, chat_id: int):
         try:
-            await self.client.join_chat(invite_link)
-            return True
+            chat = await self.client.get_entity(chat_id)
+            return chat
         except Exception as e:
-            print(f"Error joining chat: {e}")
-            return False
+            print(f"Error getting chat info: {e}")
+            return None
 
 # Global instance
 userbot_client = UserBotClient()
