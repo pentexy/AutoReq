@@ -58,6 +58,90 @@ Select an option below to manage:
         parse_mode=ParseMode.HTML
     )
 
+@router.message(Command("setup"))
+async def setup_handler(message: Message):
+    """Manually setup userbot in a channel"""
+    user_id = message.from_user.id
+    
+    if not userbot_client.is_connected:
+        await message.answer("❌ Userbot is not connected. Check your session string.")
+        return
+    
+    # Get user's channels that need setup
+    user_channels = list(db.chats.find({
+        "added_by": user_id,
+        "chat_type": "channel",
+        "userbot_setup": False
+    }))
+    
+    if not user_channels:
+        await message.answer("✅ All your channels are already setup!")
+        return
+    
+    # Get userbot username for manual reference
+    userbot_username = "Unknown"
+    try:
+        me = await userbot_client.client.get_me()
+        userbot_username = f"@{me.username}" if me.username else me.first_name
+    except:
+        pass
+    
+    text = f"""
+<b>🔄 Channels Needing Setup</b>
+
+<b>Userbot:</b> {userbot_username}
+
+<b>Channels to setup:</b>
+"""
+    for channel in user_channels:
+        text += f"• {channel['title']} (ID: {channel['chat_id']})\n"
+    
+    text += f"\nStarting automatic setup process..."
+    
+    setup_msg = await message.answer(text, parse_mode=ParseMode.HTML)
+    
+    success_count = 0
+    failed_channels = []
+    
+    for channel in user_channels:
+        try:
+            channel_text = f"🔄 Setting up: {channel['title']}"
+            await setup_msg.edit_text(f"{text}\n\n{channel_text}", parse_mode=ParseMode.HTML)
+            
+            success = await userbot_client.setup_channel(
+                int(channel['chat_id']), 
+                channel.get('invite_link')
+            )
+            
+            if success:
+                db.chats.update_one(
+                    {"chat_id": channel['chat_id']},
+                    {"$set": {"userbot_setup": True}}
+                )
+                success_count += 1
+                channel_text = f"✅ Success: {channel['title']}"
+            else:
+                failed_channels.append(channel['title'])
+                channel_text = f"❌ Failed: {channel['title']}"
+            
+            await setup_msg.edit_text(f"{text}\n\n{channel_text}", parse_mode=ParseMode.HTML)
+            await asyncio.sleep(2)  # Rate limit
+            
+        except Exception as e:
+            print(f"❌ Setup failed for {channel['title']}: {e}")
+            failed_channels.append(channel['title'])
+    
+    # Final result
+    result_text = f"<b>✅ Setup Complete</b>\n\nSuccessfully setup: {success_count}/{len(user_channels)} channels"
+    
+    if failed_channels:
+        result_text += f"\n\n<b>Failed channels (need manual setup):</b>\n"
+        for failed in failed_channels:
+            result_text += f"• {failed}\n"
+        result_text += f"\nUse <code>/manual_setup</code> for instructions"
+    
+    await setup_msg.edit_text(result_text, parse_mode=ParseMode.HTML)
+    
 @router.message(Command("refresh_invite"))
 async def refresh_invite_handler(message: Message):
     """Refresh invite link for a channel"""
