@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
+from aiogram.enums import ParseMode
 from ui.buttons import ButtonManager
 from utils.logger import Logger
 from config import config
@@ -12,7 +13,7 @@ async def start_handler(message: Message):
     user_id = message.from_user.id
     
     welcome_text = """
- **Auto Request Acceptor Bot**
+<b> Auto Request Acceptor Bot</b>
 
 Add me to your group/channel and make me admin with:
 • Manage Chat permission
@@ -23,7 +24,8 @@ I will automatically accept join requests and log everything.
     
     await message.answer(
         welcome_text,
-        reply_markup=ButtonManager.start_button()
+        reply_markup=ButtonManager.start_button(),
+        parse_mode=ParseMode.HTML
     )
     
     # Log to owner
