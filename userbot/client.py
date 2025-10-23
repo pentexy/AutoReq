@@ -118,7 +118,7 @@ class UserBotClient:
             return False
 
     async def accept_join_request(self, chat_id: int, user_id: int):
-        """Accept join request using the correct Telethon API method"""
+        """Accept join request using multiple methods"""
         if not self.is_connected:
             return False
         
@@ -126,35 +126,33 @@ class UserBotClient:
             # Get chat entity
             chat_entity = await self.client.get_entity(chat_id)
             
-            # Use get_input_entity for the user - this works better for users we haven't interacted with
-            user_input_entity = await self.client.get_input_entity(user_id)
-            
-            # Use the correct method for approving join requests
-            await self.client(HideChatJoinRequestRequest(
-                peer=chat_entity,
-                user_id=user_input_entity,
-                approved=True
-            ))
-            
-            print(f"Join request approved for {user_id} in {chat_id}")
-            return True
-            
+            # Method 1: Try using the user ID directly
+            try:
+                await self.client(HideChatJoinRequestRequest(
+                    peer=chat_entity,
+                    user_id=user_id,
+                    approved=True
+                ))
+                print(f"Join request approved for {user_id} in {chat_id}")
+                return True
+            except Exception as e:
+                print(f"Method 1 failed: {e}")
+                
+                # Method 2: Try using InviteToChannel with user ID
+                try:
+                    await self.client(InviteToChannelRequest(
+                        channel=chat_entity,
+                        users=[user_id]
+                    ))
+                    print(f"User {user_id} added to channel {chat_id} (method 2)")
+                    return True
+                except Exception as e2:
+                    print(f"Method 2 failed: {e2}")
+                    return False
+                
         except Exception as e:
             print(f"Error accepting join request: {e}")
-            
-            # If the specific method fails, try the alternative approach
-            try:
-                # Alternative: Add user directly to the channel using input entity
-                user_input_entity = await self.client.get_input_entity(user_id)
-                await self.client(InviteToChannelRequest(
-                    channel=chat_entity,
-                    users=[user_input_entity]
-                ))
-                print(f"User {user_id} added to channel {chat_id} (alternative method)")
-                return True
-            except Exception as e2:
-                print(f"Alternative method also failed: {e2}")
-                return False
+            return False
 
     async def setup_channel(self, chat_id: int, invite_link: str = None):
         """Join channel only - promotion will be done by bot"""
