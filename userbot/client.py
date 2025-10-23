@@ -1,3 +1,4 @@
+from telethon.tl.types import ChatInvite, ChatInviteAlready
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import InviteToChannelRequest, EditAdminRequest, GetParticipantsRequest, JoinChannelRequest
