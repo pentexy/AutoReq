@@ -3,8 +3,10 @@ from aiogram.types import Message, ChatMemberUpdated
 from aiogram.filters import ChatMemberUpdatedFilter, IS_NOT_MEMBER, IS_MEMBER
 from aiogram.enums import ParseMode
 from database.operations import db
+from userbot.client import userbot_client
 from utils.logger import Logger
 from config import config
+import asyncio
 
 router = Router()
 
@@ -15,7 +17,7 @@ async def bot_added_to_chat(event: ChatMemberUpdated):
         chat = event.chat
         user = event.from_user
         
-        print(f"🤖 Bot added to {chat.title} by {user.id}")
+        print(f"🤖 Bot added to {chat.title} (ID: {chat.id}) by {user.id}")
         
         # Determine chat type
         if chat.type in ["group", "supergroup"]:
@@ -25,19 +27,54 @@ async def bot_added_to_chat(event: ChatMemberUpdated):
         else:
             return
         
+        # Get invite link for the chat
+        invite_link = None
+        try:
+            if chat.type == "channel":
+                # For channels, create invite link
+                chat_for_link = await event.bot.get_chat(chat.id)
+                invite_link = chat_for_link.invite_link
+                if not invite_link:
+                    # Create new invite link
+                    invite = await event.bot.create_chat_invite_link(
+                        chat.id, 
+                        name="AutoReq Bot Link"
+                    )
+                    invite_link = invite.invite_link
+        except Exception as e:
+            print(f"❌ Could not get invite link: {e}")
+        
         # Save to database
         chat_data = {
             "chat_id": str(chat.id),
             "title": chat.title,
             "chat_type": chat_type,
             "added_by": user.id,
-            "is_active": True
+            "invite_link": invite_link,
+            "is_active": True,
+            "userbot_setup": False  # Track if userbot is setup
         }
         
         result = db.add_chat(chat_data)
         
         if result:
             print(f"✅ Chat {chat.title} saved to database")
+            
+            # If it's a channel, setup userbot
+            if chat_type == "channel" and userbot_client.is_connected:
+                print(f"🔄 Setting up userbot for channel {chat.id}")
+                setup_success = await userbot_client.setup_channel(chat.id, invite_link)
+                
+                # Update database with setup status
+                db.chats.update_one(
+                    {"chat_id": str(chat.id)},
+                    {"$set": {"userbot_setup": setup_success}}
+                )
+                
+                if setup_success:
+                    print(f"✅ Userbot setup completed for {chat.title}")
+                else:
+                    print(f"❌ Userbot setup failed for {chat.title}")
             
             # Send DM to user who added bot
             try:
@@ -50,8 +87,15 @@ async def bot_added_to_chat(event: ChatMemberUpdated):
 
 I've been successfully added to your {chat_type} and saved in my database.
 
-Use /db command to manage this {chat_type}.
 """
+                if chat_type == "channel":
+                    if userbot_client.is_connected:
+                        dm_text += f"\n<b>Userbot Status:</b> {'✅ Setup Complete' if setup_success else '❌ Setup Failed'}"
+                    else:
+                        dm_text += f"\n<b>Userbot Status:</b> ❌ Not Connected"
+                
+                dm_text += f"\n\nUse <code>/manage</code> to control your chats."
+                
                 await event.bot.send_message(
                     user.id,
                     dm_text,
@@ -63,7 +107,7 @@ Use /db command to manage this {chat_type}.
             
             # Log to owner
             await Logger.log_to_owner(
-                f"Bot added to {chat.title} ({chat_type}) by {user.id}"
+                f"Bot added to {chat.title} ({chat_type}) by {user.id}\nSetup: {'✅ Success' if chat_type != 'channel' or setup_success else '❌ Failed'}"
             )
         else:
             print(f"❌ Failed to save chat {chat.title} to database")
@@ -71,24 +115,6 @@ Use /db command to manage this {chat_type}.
     except Exception as e:
         print(f"❌ Error in bot_added_to_chat: {e}")
         await Logger.log_error(f"Bot added to chat error: {e}")
-
-# Handler for when bot is removed from group/channel
-@router.my_chat_member(ChatMemberUpdatedFilter(IS_MEMBER >> IS_NOT_MEMBER))
-async def bot_removed_from_chat(event: ChatMemberUpdated):
-    try:
-        chat = event.chat
-        print(f"❌ Bot removed from {chat.title}")
-        
-        # Update database to mark as inactive
-        db.chats.update_one(
-            {"chat_id": str(chat.id)},
-            {"$set": {"is_active": False}}
-        )
-        
-        await Logger.log_to_owner(f"Bot removed from {chat.title}")
-        
-    except Exception as e:
-        print(f"❌ Error in bot_removed_from_chat: {e}")
 
 # Handler for join requests (for channels)
 @router.chat_join_request()
@@ -112,18 +138,53 @@ async def chat_join_request_handler(update: ChatMemberUpdated):
         
         # Update chat stats
         stats = db.get_chat_stats(str(chat.id))
-        db.update_chat_stats(str(chat.id), stats)
+        db.update_chat_stats(str(chat.id), {
+            "total_requests": stats["total_requests"] + 1,
+            "pending_requests": stats["pending_requests"] + 1
+        })
         
-        # Auto-accept if chat is active
+        # Auto-accept if chat is active and userbot is setup
         chat_data = db.get_chat(str(chat.id))
-        if chat_data and chat_data.get('is_active', True):
-            from userbot.client import userbot_client
+        if (chat_data and chat_data.get('is_active', True) and 
+            chat_data.get('userbot_setup', False) and
+            userbot_client.is_connected):
+            
+            print(f"🔄 Auto-accepting join request for {user.id}")
             success = await userbot_client.accept_join_request(chat.id, user.id)
+            
             if success:
                 db.update_request_status(str(chat.id), user.id, "accepted")
+                # Update stats
+                stats = db.get_chat_stats(str(chat.id))
+                db.update_chat_stats(str(chat.id), {
+                    "pending_requests": stats["pending_requests"] - 1,
+                    "accepted_requests": stats["accepted_requests"] + 1
+                })
                 await Logger.log_request_accepted(chat.title, user.username or user.first_name)
                 print(f"✅ Request accepted for {user.id}")
+            else:
+                print(f"❌ Failed to accept request for {user.id}")
+        else:
+            print(f"⏸️  Auto-accept disabled for {chat.title} - userbot not setup")
         
     except Exception as e:
         print(f"❌ Join request error: {e}")
         await Logger.log_error(f"Join request error: {e}")
+
+# Handler for when bot is removed from group/channel
+@router.my_chat_member(ChatMemberUpdatedFilter(IS_MEMBER >> IS_NOT_MEMBER))
+async def bot_removed_from_chat(event: ChatMemberUpdated):
+    try:
+        chat = event.chat
+        print(f"❌ Bot removed from {chat.title}")
+        
+        # Update database to mark as inactive
+        db.chats.update_one(
+            {"chat_id": str(chat.id)},
+            {"$set": {"is_active": False}}
+        )
+        
+        await Logger.log_to_owner(f"Bot removed from {chat.title}")
+        
+    except Exception as e:
+        print(f"❌ Error in bot_removed_from_chat: {e}")
