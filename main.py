@@ -14,15 +14,16 @@ from utils.logger import Logger
 from handlers.start import router as start_router
 from handlers.admin import router as admin_router
 from handlers.callback import router as callback_router
-from handlers.group_events import router as group_router  # Add this line
-from services.promotion import init_promotion_service
+from handlers.group_events import router as group_router
 
-# Initialize promotion service
-init_promotion_service(bot)
-
-# Initialize
+# Initialize bot first
 bot = Bot(token=config.BOT_TOKEN)
 dp = Dispatcher()
+
+# Import and initialize promotion service AFTER bot is defined
+from services.promotion import init_promotion_service
+init_promotion_service(bot)
+
 
 # Include routers
 dp.include_router(start_router)
