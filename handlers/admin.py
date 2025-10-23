@@ -126,3 +126,53 @@ async def debug_handler(message: Message):
         debug_text += f"• {status} {chat['title']} ({chat['chat_type']}) - by {chat['added_by']}\n"
     
     await message.answer(debug_text, parse_mode=ParseMode.HTML)
+
+@router.message(Command("setup"))
+async def setup_handler(message: Message):
+    """Manually setup userbot in a channel"""
+    user_id = message.from_user.id
+    
+    # Get user's channels that need setup
+    user_channels = list(db.chats.find({
+        "added_by": user_id,
+        "chat_type": "channel",
+        "userbot_setup": False
+    }))
+    
+    if not user_channels:
+        await message.answer("✅ All your channels are already setup or no channels found.")
+        return
+    
+    if not userbot_client.is_connected:
+        await message.answer("❌ Userbot is not connected. Check your session string.")
+        return
+    
+    text = "<b>🔄 Channels Needing Setup</b>\n\n"
+    for channel in user_channels:
+        text += f"• {channel['title']}\n"
+    
+    text += "\nStarting setup process..."
+    setup_msg = await message.answer(text, parse_mode=ParseMode.HTML)
+    
+    success_count = 0
+    for channel in user_channels:
+        try:
+            success = await userbot_client.setup_channel(
+                int(channel['chat_id']), 
+                channel.get('invite_link')
+            )
+            
+            if success:
+                db.chats.update_one(
+                    {"chat_id": channel['chat_id']},
+                    {"$set": {"userbot_setup": True}}
+                )
+                success_count += 1
+                await asyncio.sleep(2)  # Rate limit
+        except Exception as e:
+            print(f"❌ Setup failed for {channel['title']}: {e}")
+    
+    await setup_msg.edit_text(
+        f"<b>✅ Setup Complete</b>\n\nSuccessfully setup {success_count}/{len(user_channels)} channels.",
+        parse_mode=ParseMode.HTML
+    )
