@@ -4,7 +4,9 @@ from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from database.operations import db
 from ui.buttons import ButtonManager
+from userbot.client import userbot_client
 from config import config
+import asyncio
 
 router = Router()
 
@@ -55,44 +57,6 @@ Select an option below to manage:
         reply_markup=ButtonManager.user_manage_main(),
         parse_mode=ParseMode.HTML
     )
-
-@router.message(Command("channel_info"))
-async def channel_info_handler(message: Message):
-    """Check channel information and userbot status"""
-    user_id = message.from_user.id
-    
-    # Get user's channels
-    user_channels = list(db.chats.find({
-        "added_by": user_id,
-        "chat_type": "channel"
-    }))
-    
-    if not user_channels:
-        await message.answer("❌ No channels found in your account.")
-        return
-    
-    text = "<b>📊 Your Channels Status</b>\n\n"
-    
-    for channel in user_channels:
-        chat_id = int(channel['chat_id'])
-        
-        # Get channel info from userbot
-        channel_info = await userbot_client.get_channel_info(chat_id) if userbot_client.is_connected else None
-        
-        text += f"<b>📺 {channel['title']}</b>\n"
-        text += f"ID: <code>{channel['chat_id']}</code>\n"
-        text += f"Setup: {'✅' if channel.get('userbot_setup') else '❌'}\n"
-        text += f"Active: {'✅' if channel.get('is_active', True) else '❌'}\n"
-        
-        if channel_info:
-            text += f"Participants: {channel_info.get('participants_count', 'Unknown')}\n"
-            text += f"Type: {'Broadcast' if channel_info.get('broadcast') else 'Group'}\n"
-        else:
-            text += f"Status: ❌ Cannot access\n"
-        
-        text += "\n"
-    
-    await message.answer(text, parse_mode=ParseMode.HTML)
 
 @router.message(Command("db"))
 async def db_handler(message: Message):
@@ -155,6 +119,7 @@ async def debug_handler(message: Message):
 <b>Total Chats in DB:</b> {total_chats}
 <b>Active Chats:</b> {active_chats}
 <b>Bot Status:</b> ✅ Running
+<b>Userbot Status:</b> {'✅ Connected' if userbot_client.is_connected else '❌ Disconnected'}
 
 <b>Recent Chats:</b>
 """
@@ -164,6 +129,94 @@ async def debug_handler(message: Message):
         debug_text += f"• {status} {chat['title']} ({chat['chat_type']}) - by {chat['added_by']}\n"
     
     await message.answer(debug_text, parse_mode=ParseMode.HTML)
+
+@router.message(Command("setup"))
+async def setup_handler(message: Message):
+    """Manually setup userbot in a channel"""
+    user_id = message.from_user.id
+    
+    # Get user's channels that need setup
+    user_channels = list(db.chats.find({
+        "added_by": user_id,
+        "chat_type": "channel",
+        "userbot_setup": False
+    }))
+    
+    if not user_channels:
+        await message.answer("✅ All your channels are already setup or no channels found.")
+        return
+    
+    if not userbot_client.is_connected:
+        await message.answer("❌ Userbot is not connected. Check your session string.")
+        return
+    
+    text = "<b>🔄 Channels Needing Setup</b>\n\n"
+    for channel in user_channels:
+        text += f"• {channel['title']}\n"
+    
+    text += "\nStarting setup process..."
+    setup_msg = await message.answer(text, parse_mode=ParseMode.HTML)
+    
+    success_count = 0
+    for channel in user_channels:
+        try:
+            success = await userbot_client.setup_channel(
+                int(channel['chat_id']), 
+                channel.get('invite_link')
+            )
+            
+            if success:
+                db.chats.update_one(
+                    {"chat_id": channel['chat_id']},
+                    {"$set": {"userbot_setup": True}}
+                )
+                success_count += 1
+                await asyncio.sleep(2)  # Rate limit
+        except Exception as e:
+            print(f"❌ Setup failed for {channel['title']}: {e}")
+    
+    await setup_msg.edit_text(
+        f"<b>✅ Setup Complete</b>\n\nSuccessfully setup {success_count}/{len(user_channels)} channels.",
+        parse_mode=ParseMode.HTML
+    )
+
+@router.message(Command("channel_info"))
+async def channel_info_handler(message: Message):
+    """Check channel information and userbot status"""
+    user_id = message.from_user.id
+    
+    # Get user's channels
+    user_channels = list(db.chats.find({
+        "added_by": user_id,
+        "chat_type": "channel"
+    }))
+    
+    if not user_channels:
+        await message.answer("❌ No channels found in your account.")
+        return
+    
+    text = "<b>📊 Your Channels Status</b>\n\n"
+    
+    for channel in user_channels:
+        chat_id = int(channel['chat_id'])
+        
+        # Get channel info from userbot
+        channel_info = await userbot_client.get_channel_info(chat_id) if userbot_client.is_connected else None
+        
+        text += f"<b>📺 {channel['title']}</b>\n"
+        text += f"ID: <code>{channel['chat_id']}</code>\n"
+        text += f"Setup: {'✅' if channel.get('userbot_setup') else '❌'}\n"
+        text += f"Active: {'✅' if channel.get('is_active', True) else '❌'}\n"
+        
+        if channel_info:
+            text += f"Participants: {channel_info.get('participants_count', 'Unknown')}\n"
+            text += f"Type: {'Broadcast' if channel_info.get('broadcast') else 'Group'}\n"
+        else:
+            text += f"Status: ❌ Cannot access\n"
+        
+        text += "\n"
+    
+    await message.answer(text, parse_mode=ParseMode.HTML)
 
 @router.message(Command("force_setup"))
 async def force_setup_handler(message: Message):
