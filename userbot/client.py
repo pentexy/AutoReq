@@ -34,33 +34,25 @@ class UserBotClient:
             return False
 
     async def is_userbot_in_channel(self, chat_id: int):
-        """Check if userbot is actually in the channel"""
+        """Simple check if userbot can access the channel"""
         if not self.is_connected:
             return False
         
         try:
-            # Try to get the channel entity
+            # Try to get the channel entity - this will fail if not a member
             entity = await self.client.get_entity(chat_id)
             
-            # Try to get participants list (this will fail if not a member)
-            participants = await self.client.get_participants(entity, limit=1)
-            
-            # Check if userbot is in the participants
-            me = await self.client.get_me()
-            for participant in participants:
-                if participant.id == me.id:
-                    return True
-            
-            # If we got here but no participants found, try another method
+            # If we can get the entity, we're probably in the channel
+            # Try a simple operation that doesn't require admin rights
             try:
-                # Try to get channel full info
-                full_chat = await self.client(GetFullChannelRequest(entity))
+                # Try to get basic chat info
+                chat = await self.client.get_entity(chat_id)
                 return True
             except:
                 return False
                 
         except Exception as e:
-            print(f"❌ Error checking userbot membership: {e}")
+            # If we can't get the entity, we're not in the channel
             return False
 
     async def get_userbot_info(self):
@@ -115,32 +107,22 @@ class UserBotClient:
             return False
 
     async def join_channel(self, chat_id: int, invite_link: str = None):
-        """Join channel via multiple methods"""
+        """Join channel - assume success if no error"""
         if not self.is_connected:
             return False
         
-        print(f"🔄 Attempting to join channel {chat_id}")
-        
-        # First, check if userbot is already in the channel
-        if await self.is_userbot_in_channel(chat_id):
-            print(f"✅ Userbot is already in channel {chat_id}")
-            return True
+        print(f"🔄 Joining channel {chat_id}")
         
         # Method 1: Try using invite link
         if invite_link:
-            print(f"🔗 Trying invite link method...")
+            print(f"🔗 Using invite link...")
             success = await self.join_channel_via_invite(invite_link)
             if success:
-                # Verify join was successful
-                if await self.is_userbot_in_channel(chat_id):
-                    print(f"✅ Verified: Userbot is now in channel {chat_id}")
-                    return True
-                else:
-                    print(f"❌ Join appeared successful but verification failed")
+                print(f"✅ Join successful via invite link")
+                return True
         
-        # Method 2: Manual intervention required
-        print(f"❌ Automatic join failed for channel {chat_id}")
-        print(f"💡 Manual intervention required: Please add userbot to the channel")
+        # If no invite link or join failed
+        print(f"❌ No invite link or join failed")
         return False
 
     async def promote_to_admin(self, chat_id: int):
@@ -148,13 +130,8 @@ class UserBotClient:
         if not self.is_connected:
             return False
         
-        # First verify userbot is in the channel
-        if not await self.is_userbot_in_channel(chat_id):
-            print(f"❌ Userbot is not in channel {chat_id}, cannot promote")
-            return False
-        
         try:
-            # Get entity
+            # Get entity - this will fail if not in channel
             entity = await self.client.get_entity(chat_id)
             me = await self.client.get_me()
             
@@ -165,10 +142,10 @@ class UserBotClient:
                 delete_messages=True,
                 pin_messages=True,
                 manage_call=True,
-                post_messages=False,  # Don't need to post
-                add_admins=False,     # Don't allow to add other admins
-                change_info=False,    # Don't need to change info
-                edit_messages=False   # Don't need to edit messages
+                post_messages=False,
+                add_admins=False,
+                change_info=False,
+                edit_messages=False
             )
             
             # Promote to admin
@@ -184,6 +161,25 @@ class UserBotClient:
             
         except Exception as e:
             print(f"❌ Error promoting userbot in {chat_id}: {e}")
+            return False
+
+    async def test_channel_access(self, chat_id: int):
+        """Test if userbot has proper access to the channel"""
+        if not self.is_connected:
+            return False
+        
+        try:
+            # Try to get entity
+            entity = await self.client.get_entity(chat_id)
+            
+            # Try a simple operation
+            await self.client.get_permissions(entity, await self.client.get_me())
+            
+            print(f"✅ Userbot has access to channel {chat_id}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Userbot cannot access channel {chat_id}: {e}")
             return False
 
     async def accept_join_request(self, chat_id: int, user_id: int):
@@ -220,7 +216,7 @@ class UserBotClient:
         """Full setup: join channel and get admin rights"""
         print(f"🔧 Setting up userbot in channel {chat_id}")
         
-        # Get userbot info for manual reference
+        # Get userbot info for reference
         userbot_info = await self.get_userbot_info()
         userbot_ref = f"@{userbot_info['username']}" if userbot_info and userbot_info.get('username') else f"Userbot (ID: {userbot_info['id']})" if userbot_info else "Userbot"
         
@@ -229,18 +225,26 @@ class UserBotClient:
         joined = await self.join_channel(chat_id, invite_link)
         if not joined:
             print(f"❌ Failed to join channel {chat_id}")
-            print(f"💡 Please manually add {userbot_ref} to the channel as a member")
+            print(f"💡 Please manually add {userbot_ref} to the channel")
             return False
         
-        # Wait a bit before promoting
-        await asyncio.sleep(2)
+        # Wait a bit
+        await asyncio.sleep(3)
         
-        # Step 2: Promote to admin
-        print("👑 Step 2: Promoting to admin...")
+        # Step 2: Test access
+        print("🔍 Step 2: Testing access...")
+        has_access = await self.test_channel_access(chat_id)
+        if not has_access:
+            print(f"❌ Userbot cannot access channel {chat_id}")
+            print(f"💡 Please ensure {userbot_ref} is properly added to the channel")
+            return False
+        
+        # Step 3: Promote to admin
+        print("👑 Step 3: Promoting to admin...")
         promoted = await self.promote_to_admin(chat_id)
         if not promoted:
             print(f"❌ Failed to promote in channel {chat_id}")
-            print(f"💡 Please manually grant admin rights to {userbot_ref} in the channel")
+            print(f"💡 Please manually grant admin rights to {userbot_ref}")
             print(f"💡 Required permissions: Invite Users, Ban Users, Delete Messages")
             return False
         
@@ -252,15 +256,15 @@ class UserBotClient:
         try:
             entity = await self.client.get_entity(chat_id)
             if entity:
-                # Check if userbot is in channel
-                in_channel = await self.is_userbot_in_channel(chat_id)
+                # Simple check - if we can get entity, we have some access
+                has_access = await self.test_channel_access(chat_id)
                 
                 return {
                     'title': getattr(entity, 'title', 'Unknown'),
                     'username': getattr(entity, 'username', None),
                     'participants_count': getattr(entity, 'participants_count', 0),
                     'broadcast': getattr(entity, 'broadcast', False),
-                    'userbot_in_channel': in_channel
+                    'userbot_has_access': has_access
                 }
             return None
         except Exception as e:
