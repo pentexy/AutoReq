@@ -118,36 +118,51 @@ class UserBotClient:
             return False
 
     async def accept_join_request(self, chat_id: int, user_id: int):
-        """Accept join request in channel"""
-        if not self.is_connected:
-            return False
+    """Accept join request in channel using proper Telethon method"""
+    if not self.is_connected:
+        return False
+    
+    try:
+        # Get chat entity
+        chat_entity = await self.client.get_entity(chat_id)
         
+        # Use the proper method for approving join requests
+        from telethon.tl.functions.channels import EditChatDefaultBannedRightsRequest
+        from telethon.tl.types import ChatBannedRights
+        
+        # Instead of trying to get user entity, use the user_id directly
+        # The proper way is to use the specific method for approving join requests
         try:
-            # Get chat entity
-            chat_entity = await self.client.get_entity(chat_id)
-            
-            # Get user entity first
-            try:
-                user_entity = await self.client.get_entity(user_id)
-            except Exception as e:
-                print(f"Could not get user entity {user_id}: {e}")
-                return False
-            
-            # For channels, approve the join request with minimal permissions
-            await self.client.edit_permissions(
-                chat_entity,
-                user_entity,
-                view_messages=True,
-                send_messages=True,
-                send_media=True
-            )
-            
-            print(f"Join request accepted for {user_id} in {chat_id}")
+            # First try the specific approve method
+            from telethon.tl.functions.messages import HideChatJoinRequestRequest
+            await self.client(HideChatJoinRequestRequest(
+                peer=chat_entity,
+                user_id=user_id,
+                approved=True
+            ))
+            print(f"Join request approved for {user_id} in {chat_id}")
             return True
-            
         except Exception as e:
-            print(f"Error accepting join request: {e}")
-            return False
+            print(f"HideChatJoinRequest failed: {e}")
+            
+            # Fallback: Try to add user directly to channel
+            try:
+                from telethon.tl.functions.channels import InviteToChannelRequest
+                # Get user entity using the user_id
+                user_entity = await self.client.get_input_entity(user_id)
+                await self.client(InviteToChannelRequest(
+                    channel=chat_entity,
+                    users=[user_entity]
+                ))
+                print(f"User {user_id} added to channel {chat_id}")
+                return True
+            except Exception as e2:
+                print(f"InviteToChannel also failed: {e2}")
+                return False
+                
+    except Exception as e:
+        print(f"Error accepting join request: {e}")
+        return False
 
     async def setup_channel(self, chat_id: int, invite_link: str = None):
         """Join channel only - promotion will be done by bot"""
