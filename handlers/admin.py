@@ -58,6 +58,53 @@ Select an option below to manage:
         parse_mode=ParseMode.HTML
     )
 
+@router.message(Command("refresh_invite"))
+async def refresh_invite_handler(message: Message):
+    """Refresh invite link for a channel"""
+    user_id = message.from_user.id
+    
+    # Get the command argument (channel ID)
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Usage: /refresh_invite <channel_id>")
+        return
+    
+    channel_id = args[1]
+    
+    # Check if user owns this channel
+    channel = db.get_chat(channel_id)
+    if not channel or channel['added_by'] != user_id:
+        await message.answer("❌ Channel not found or you don't have permission.")
+        return
+    
+    refresh_msg = await message.answer(f"🔄 Refreshing invite link for {channel['title']}...")
+    
+    try:
+        # Create new invite link
+        invite = await message.bot.create_chat_invite_link(
+            int(channel_id),
+            name="AutoReq UserBot Join",
+            creates_join_request=False,
+            expire_date=None,
+            member_limit=1
+        )
+        
+        # Update database
+        db.chats.update_one(
+            {"chat_id": channel_id},
+            {"$set": {"invite_link": invite.invite_link, "userbot_setup": False}}
+        )
+        
+        await refresh_msg.edit_text(
+            f"✅ New invite link created for {channel['title']}\n\n"
+            f"🔗 Link: <code>{invite.invite_link}</code>\n\n"
+            f"Now use /setup to setup userbot with the new link.",
+            parse_mode=ParseMode.HTML
+        )
+        
+    except Exception as e:
+        await refresh_msg.edit_text(f"❌ Error creating invite link: {e}")
+
 @router.message(Command("db"))
 async def db_handler(message: Message):
     """Owner-only full database management"""
