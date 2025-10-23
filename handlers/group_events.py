@@ -6,12 +6,12 @@ from database.operations import db
 from userbot.client import userbot_client
 from utils.logger import Logger
 from config import config
-from services.promotion import promotion_service  # ADD THIS LINE
 import asyncio
 
 router = Router()
 
-router = Router()
+# This will be set by main.py
+promotion_service = None
 
 @router.my_chat_member(ChatMemberUpdatedFilter(IS_NOT_MEMBER >> IS_MEMBER))
 async def bot_added_to_chat(event: ChatMemberUpdated):
