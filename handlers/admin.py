@@ -41,6 +41,7 @@ async def setup_handler(message: Message):
     setup_msg = await message.answer(f"Starting setup for {len(user_channels)} channels...")
     
     success_count = 0
+    detailed_results = []
     
     for channel in user_channels:
         try:
@@ -68,24 +69,25 @@ async def setup_handler(message: Message):
                             {"$set": {"userbot_setup": True}}
                         )
                         success_count += 1
-                        channel_text = f"Success: {channel['title']}"
+                        detailed_results.append(f"✅ {channel['title']} - Complete")
                     else:
-                        channel_text = f"Promote failed: {channel['title']}"
+                        detailed_results.append(f"❌ {channel['title']} - Promotion failed")
                 else:
-                    channel_text = f"No userbot info: {channel['title']}"
+                    detailed_results.append(f"❌ {channel['title']} - No userbot info")
             else:
-                channel_text = f"Join failed: {channel['title']}"
+                detailed_results.append(f"❌ {channel['title']} - Join failed")
             
-            await setup_msg.edit_text(f"{channel_text}")
             await asyncio.sleep(2)
             
         except Exception as e:
             print(f"Setup failed for {channel['title']}: {e}")
-            channel_text = f"Error: {channel['title']} - {str(e)}"
-            await setup_msg.edit_text(f"{channel_text}")
+            detailed_results.append(f"❌ {channel['title']} - Error: {str(e)}")
     
-    result_text = f"Setup complete: {success_count}/{len(user_channels)} channels"
+    # Show detailed results
+    result_text = f"Setup complete: {success_count}/{len(user_channels)} channels\n\n"
+    result_text += "\n".join(detailed_results)
+    
     if success_count < len(user_channels):
-        result_text += "\n\nFor failed channels, ensure:\n- Bot is admin with promote rights\n- Userbot is channel member"
+        result_text += "\n\nFor failed channels:\n- Ensure bot is admin with 'Promote Members' permission\n- Userbot must be channel member"
     
     await setup_msg.edit_text(result_text)
