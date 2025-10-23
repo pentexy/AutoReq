@@ -118,37 +118,36 @@ class UserBotClient:
             return False
 
     async def accept_join_request(self, chat_id: int, user_id: int):
-    """Accept join request in channel"""
-    if not self.is_connected:
-        return False
-    
-    try:
-        # Get chat entity
-        chat_entity = await self.client.get_entity(chat_id)
-        
-        # Get user entity first
-        try:
-            user_entity = await self.client.get_entity(user_id)
-        except Exception as e:
-            print(f"Could not get user entity {user_id}: {e}")
-            # If we can't get the user entity, we can't accept the request
+        """Accept join request in channel"""
+        if not self.is_connected:
             return False
         
-        # For channels, approve the join request with minimal permissions
-        await self.client.edit_permissions(
-            chat_entity,
-            user_entity,
-            view_messages=True,
-            send_messages=True,
-            send_media=True
-        )
-        
-        print(f"Join request accepted for {user_id} in {chat_id}")
-        return True
-        
-    except Exception as e:
-        print(f"Error accepting join request: {e}")
-        return False
+        try:
+            # Get chat entity
+            chat_entity = await self.client.get_entity(chat_id)
+            
+            # Get user entity first
+            try:
+                user_entity = await self.client.get_entity(user_id)
+            except Exception as e:
+                print(f"Could not get user entity {user_id}: {e}")
+                return False
+            
+            # For channels, approve the join request with minimal permissions
+            await self.client.edit_permissions(
+                chat_entity,
+                user_entity,
+                view_messages=True,
+                send_messages=True,
+                send_media=True
+            )
+            
+            print(f"Join request accepted for {user_id} in {chat_id}")
+            return True
+            
+        except Exception as e:
+            print(f"Error accepting join request: {e}")
+            return False
 
     async def setup_channel(self, chat_id: int, invite_link: str = None):
         """Join channel only - promotion will be done by bot"""
