@@ -1,70 +1,50 @@
-import os
 import asyncio
 import logging
-from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher
+from aiogram.filters import Command
+from aiogram.types import Message
 
-# Load environment variables first
-load_dotenv()
-
-# Enable logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-from pyrogram import Client, filters
-from pyrogram.types import ChatJoinRequest, Message
 from config import config
+from database.operations import MongoDB
+from userbot.client import userbot_client
+from utils.logger import Logger
 
-# Initialize bot
-app = Client(
-    "auto_req_bot", 
-    api_id=config.API_ID, 
-    api_hash=config.API_HASH, 
-    bot_token=config.BOT_TOKEN
-)
+# Import handlers
+from handlers.start import router as start_router
+from handlers.admin import router as admin_router
+from handlers.callback import router as callback_router
 
-# Add handlers directly in main.py
-@app.on_message(filters.command("start") & filters.private)
-async def start_handler(client: Client, message: Message):
-    logger.info(f"Start command from {message.from_user.id}")
-    
-    welcome_text = """
-**Auto Request Acceptor Bot**
+# Initialize
+bot = Bot(token=config.BOT_TOKEN)
+dp = Dispatcher()
+db = MongoDB()
 
-Add me to your group/channel and make me admin with:
-- Manage Chat permission  
-- Invite Users via link permission
+# Include routers
+dp.include_router(start_router)
+dp.include_router(admin_router)
+dp.include_router(callback_router)
 
-I will automatically accept join requests.
-"""
-    await message.reply_text(welcome_text)
+# Set bot for logger
+Logger.set_bot(bot)
 
-@app.on_message(filters.command("db") & filters.private & filters.user(config.OWNER_ID))
-async def db_handler(client: Client, message: Message):
-    logger.info(f"DB command from {message.from_user.id}")
-    await message.reply_text("📊 Database management")
-
-@app.on_message(filters.private & filters.text)
-async def echo_handler(client: Client, message: Message):
-    logger.info(f"Message from {message.from_user.id}: {message.text}")
-    await message.reply_text(f"Echo: {message.text}")
+@dp.message(Command("test"))
+async def test_handler(message: Message):
+    await message.answer("✅ Bot is working!")
 
 async def main():
+    print("🚀 Starting Auto Request Acceptor Bot...")
+    
+    # Start userbot
+    await userbot_client.start()
+    
+    # Start main bot
     try:
-        # Start main bot
-        print("🤖 Starting Bot...")
-        await app.start()
-        
-        me = await app.get_me()
-        print(f"✅ Bot started: @{me.username}")
-        print("📱 Send /start to test")
-        
-        # Keep running
-        await asyncio.Event().wait()
-        
+        await dp.start_polling(bot)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Bot error: {e}")
     finally:
-        await app.stop()
+        await bot.session.close()
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
