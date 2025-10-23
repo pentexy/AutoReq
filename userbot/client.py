@@ -117,7 +117,7 @@ class UserBotClient:
             print(f"Userbot cannot access channel {chat_id}: {e}")
             return False
 
-    async def accept_join_request(self, chat_id: int, user_id: int):
+  async def accept_join_request(self, chat_id: int, user_id: int):
     """Accept join request in channel using proper Telethon method"""
     if not self.is_connected:
         return False
