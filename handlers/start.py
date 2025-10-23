@@ -20,6 +20,8 @@ Add me to your group/channel and make me admin with:
 • Invite Users via link permission
 
 I will automatically accept join requests and log everything.
+
+After adding me, use <code>/manage</code> to control your chats.
 """
     
     await message.answer(
