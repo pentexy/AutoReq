@@ -1,18 +1,19 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
-from database.operations import MongoDB
+from aiogram.enums import ParseMode
+from database.operations import db
 from ui.buttons import ButtonManager
 from userbot.client import userbot_client
 import asyncio
 
 router = Router()
-db = MongoDB()
 
 @router.callback_query(F.data == "db_main")
 async def db_main_callback(callback: CallbackQuery):
     await callback.message.edit_text(
-        "📊 **Database Management**\nSelect category:",
-        reply_markup=ButtonManager.db_main()
+        "<b>📊 Database Management</b>\nSelect category:",
+        reply_markup=ButtonManager.db_main(),
+        parse_mode=ParseMode.HTML
     )
 
 @router.callback_query(F.data.startswith("db_"))
@@ -47,10 +48,11 @@ async def show_chat_list(callback: CallbackQuery, chat_type: str, page: int = 0)
         )
         return
     
-    text = f"**{chat_type.title()}s**\n\nSelect a chat to view details:"
+    text = f"<b>{chat_type.title()}s</b>\n\nSelect a chat to view details:"
     await callback.message.edit_text(
         text,
-        reply_markup=ButtonManager.chat_list(all_chats, page, chat_type)
+        reply_markup=ButtonManager.chat_list(all_chats, page, chat_type),
+        parse_mode=ParseMode.HTML
     )
 
 async def show_chat_detail(callback: CallbackQuery, chat_id: str):
@@ -62,14 +64,14 @@ async def show_chat_detail(callback: CallbackQuery, chat_id: str):
     stats = db.get_chat_stats(chat_id)
     
     text = f"""
-**Chat Details**
+<b>Chat Details</b>
 
-**Title:** {chat['title']}
-**Type:** {chat['chat_type']}
-**ID:** {chat['chat_id']}
-**Added By:** {chat['added_by']}
+<b>Title:</b> {chat['title']}
+<b>Type:</b> {chat['chat_type']}
+<b>ID:</b> {chat['chat_id']}
+<b>Added By:</b> {chat['added_by']}
 
-**Statistics:**
+<b>Statistics:</b>
 Total Requests: {stats['total_requests']}
 Pending: {stats['pending_requests']}
 Accepted: {stats['accepted_requests']}
@@ -77,7 +79,8 @@ Accepted: {stats['accepted_requests']}
     
     await callback.message.edit_text(
         text,
-        reply_markup=ButtonManager.chat_detail(chat_id, stats)
+        reply_markup=ButtonManager.chat_detail(chat_id, stats),
+        parse_mode=ParseMode.HTML
     )
 
 async def accept_all_requests(callback: CallbackQuery, chat_id: str):
