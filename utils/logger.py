@@ -1,4 +1,3 @@
-from aiogram import Bot
 from config import config
 
 class Logger:
@@ -13,8 +12,9 @@ class Logger:
         if cls.bot and config.OWNER_ID:
             try:
                 await cls.bot.send_message(config.OWNER_ID, f"📊 {message}")
+                print(f"✅ Log sent to owner: {message}")
             except Exception as e:
-                print(f"Logging error: {e}")
+                print(f"❌ Logging error: {e}")
     
     @classmethod
     async def log_chat_added(cls, chat_title: str, added_by: int, chat_type: str):
@@ -29,7 +29,7 @@ class Logger:
     
     @classmethod
     async def log_request_accepted(cls, chat_title: str, username: str):
-        message = f"✅ Request accepted in {chat_title} for @{username}"
+        message = f"✅ Request accepted in {chat_title} for {username}"
         await cls.log_to_owner(message)
     
     @classmethod
