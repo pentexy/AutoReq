@@ -84,4 +84,8 @@ async def setup_handler(message: Message):
             channel_text = f"Error: {channel['title']} - {str(e)}"
             await setup_msg.edit_text(f"{channel_text}")
     
-    await setup_msg.edit_text(f"Setup complete: {success_count}/{len(user_channels)} channels")
+    result_text = f"Setup complete: {success_count}/{len(user_channels)} channels"
+    if success_count < len(user_channels):
+        result_text += "\n\nFor failed channels, ensure:\n- Bot is admin with promote rights\n- Userbot is channel member"
+    
+    await setup_msg.edit_text(result_text)
