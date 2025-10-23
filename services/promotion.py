@@ -7,6 +7,7 @@ import asyncio
 class PromotionService:
     def __init__(self, bot_client: Client):
         self.bot = bot_client
+        print("✅ Promotion service initialized")
     
     async def promote_userbot(self, chat_id: int, userbot_user_id: int):
         """Promote userbot to admin using bot's admin privileges"""
@@ -101,3 +102,5 @@ promotion_service = None
 def init_promotion_service(bot_client: Client):
     global promotion_service
     promotion_service = PromotionService(bot_client)
+    print(f"✅ Promotion service initialized with bot: {bot_client}")
+    return promotion_service
