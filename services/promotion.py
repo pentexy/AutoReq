@@ -34,26 +34,26 @@ class PromotionService:
             except Exception as e:
                 print(f"Error checking userbot status: {e}")
             
-        # Promote userbot with specific permissions in Aiogram v3.x
-    await self.bot.promote_chat_member(
-    chat_id=chat_id,
-    user_id=userbot_user_id,
-    can_change_info=False,
-    can_delete_messages=True,
-    can_invite_users=True,
-    can_restrict_members=False,
-    can_promote_members=False,
-    can_manage_chat=True,
-    can_manage_video_chats=True,  # covers voice chats too
-    can_post_messages=False,
-    can_edit_messages=False,
-    can_pin_messages=True,
-    can_post_stories=False,
-    can_edit_stories=False,
-    can_delete_stories=False,
-    can_manage_topics=False
-)
-
+            # For Aiogram, we use individual parameters instead of rights object
+            # Promote userbot with specific permissions
+            await self.bot.promote_chat_member(
+                chat_id=chat_id,
+                user_id=userbot_user_id,
+                can_change_info=False,
+                can_delete_messages=True,
+                can_invite_users=True,
+                can_restrict_members=False,
+                can_promote_members=False,
+                can_manage_chat=True,
+                can_manage_video_chats=True,
+                can_post_messages=False,
+                can_edit_messages=False,
+                can_pin_messages=True,
+                can_post_stories=False,
+                can_edit_stories=False,
+                can_delete_stories=False,
+                can_manage_topics=False
+            )
             
             # Set custom title
             try:
