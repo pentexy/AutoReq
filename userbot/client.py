@@ -126,10 +126,13 @@ class UserBotClient:
             # Get chat entity
             chat_entity = await self.client.get_entity(chat_id)
             
+            # Use get_input_entity for the user - this works better for users we haven't interacted with
+            user_input_entity = await self.client.get_input_entity(user_id)
+            
             # Use the correct method for approving join requests
             await self.client(HideChatJoinRequestRequest(
                 peer=chat_entity,
-                user_id=user_id,
+                user_id=user_input_entity,
                 approved=True
             ))
             
@@ -141,11 +144,11 @@ class UserBotClient:
             
             # If the specific method fails, try the alternative approach
             try:
-                # Alternative: Add user directly to the channel
-                user_entity = await self.client.get_input_entity(user_id)
+                # Alternative: Add user directly to the channel using input entity
+                user_input_entity = await self.client.get_input_entity(user_id)
                 await self.client(InviteToChannelRequest(
                     channel=chat_entity,
-                    users=[user_entity]
+                    users=[user_input_entity]
                 ))
                 print(f"User {user_id} added to channel {chat_id} (alternative method)")
                 return True
