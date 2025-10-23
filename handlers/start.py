@@ -3,10 +3,15 @@ from pyrogram.types import Message
 from ui.buttons import ButtonManager
 from utils.logger import Logger
 from config import config
+import logging
+
+logger = logging.getLogger(__name__)
 
 @Client.on_message(filters.command("start") & filters.private)
 async def start_handler(client: Client, message: Message):
     user_id = message.from_user.id
+    
+    logger.info(f"Start command received from {user_id}")
     
     if len(message.command) > 1:
         # Handle deep linking
