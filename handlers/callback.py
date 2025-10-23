@@ -1,10 +1,10 @@
-from config import config
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from aiogram.enums import ParseMode
 from database.operations import db
 from ui.buttons import ButtonManager
 from userbot.client import userbot_client
+from config import config  # ADD THIS LINE
 import asyncio
 
 router = Router()
