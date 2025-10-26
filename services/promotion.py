@@ -1,13 +1,13 @@
 from aiogram import Bot
 from aiogram.types import ChatAdministratorRights
-from aiogram.enums import ChatMemberStatus
+from aiogram.types import ChatMemberStatus
 from config import config
 import asyncio
 
 class PromotionService:
     def __init__(self, bot_client: Bot):
         self.bot = bot_client
-        print("✅ Promotion service initialized with Aiogram")
+        print("✅ Promotion service initialized with Aiogram 2.x")
     
     async def promote_userbot(self, chat_id: int, userbot_user_id: int):
         """Promote userbot to admin using bot's admin privileges"""
@@ -34,8 +34,7 @@ class PromotionService:
             except Exception as e:
                 print(f"Error checking userbot status: {e}")
             
-            # For Aiogram, we use individual parameters instead of rights object
-            # Promote userbot with specific permissions
+            # For Aiogram 2.x, we use individual parameters
             await self.bot.promote_chat_member(
                 chat_id=chat_id,
                 user_id=userbot_user_id,
@@ -46,13 +45,10 @@ class PromotionService:
                 can_promote_members=False,
                 can_manage_chat=True,
                 can_manage_video_chats=True,
+                can_manage_voice_chats=True,
                 can_post_messages=False,
                 can_edit_messages=False,
-                can_pin_messages=True,
-                can_post_stories=False,
-                can_edit_stories=False,
-                can_delete_stories=False,
-                can_manage_topics=False
+                can_pin_messages=True
             )
             
             # Set custom title
