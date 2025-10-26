@@ -2,7 +2,6 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import filters
 from aiogram.utils import executor
 
 from config import config
@@ -10,32 +9,25 @@ from database.operations import db
 from userbot.client import userbot_client
 from utils.logger import Logger
 
-# Import handlers
-from handlers.start import router as start_router
-from handlers.admin import router as admin_router
-from handlers.callback import router as callback_router
-from handlers.group_events import router as group_router
+# Import and initialize promotion service
+from services.promotion import init_promotion_service
 
 # Initialize bot
 bot = Bot(token=config.BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-# Import and initialize promotion service AFTER bot is defined
-from services.promotion import init_promotion_service
+# Initialize promotion service
 promotion_service = init_promotion_service(bot)
 
-# Set promotion_service in handlers
-import handlers.admin
-import handlers.group_events
-handlers.admin.promotion_service = promotion_service
-handlers.group_events.promotion_service = promotion_service
+# Import and register handlers
+from handlers import start, admin, callback, group_events
 
-# Include routers
-dp.include_router(start_router)
-dp.include_router(admin_router)
-dp.include_router(callback_router)
-dp.include_router(group_router)
+# Register all handlers
+start.register_handlers(dp)
+admin.register_handlers(dp)
+callback.register_handlers(dp)
+group_events.register_handlers(dp)
 
 # Set bot for logger
 Logger.set_bot(bot)
