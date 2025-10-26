@@ -1,127 +1,142 @@
-from aiogram import Bot
-from aiogram.types import ChatAdministratorRights
-from aiogram.types import ChatMemberStatus
+from aiogram import Dispatcher, types
+from aiogram.dispatcher import F
+from aiogram.dispatcher.filters import ChatMemberUpdatedFilter, IS_NOT_MEMBER, IS_MEMBER
+from database.operations import db
+from userbot.client import userbot_client
+from utils.logger import Logger
 from config import config
 import asyncio
 
-class PromotionService:
-    def __init__(self, bot_client: Bot):
-        self.bot = bot_client
-        print("✅ Promotion service initialized with Aiogram 2.x")
-    
-    async def promote_userbot(self, chat_id: int, userbot_user_id: int):
-        """Promote userbot to admin using bot's admin privileges"""
-        try:
-            print(f"Promoting userbot {userbot_user_id} in chat {chat_id}")
-            
-            # Check if bot has admin rights
-            bot_member = await self.bot.get_chat_member(chat_id, self.bot.id)
-            if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
-                print("Bot is not admin in this chat")
-                return False
-            
-            # Check if bot has promote permission
-            if not bot_member.can_promote_members:
-                print("Bot does not have promote members permission")
-                return False
-            
-            # Check if userbot is already admin
-            try:
-                userbot_member = await self.bot.get_chat_member(chat_id, userbot_user_id)
-                if userbot_member.status == ChatMemberStatus.ADMINISTRATOR:
-                    print("Userbot is already an admin")
-                    return True
-            except Exception as e:
-                print(f"Error checking userbot status: {e}")
-            
-            # For Aiogram 2.x, we use individual parameters
-            await self.bot.promote_chat_member(
-                chat_id=chat_id,
-                user_id=userbot_user_id,
-                can_change_info=False,
-                can_delete_messages=True,
-                can_invite_users=True,
-                can_restrict_members=False,
-                can_promote_members=False,
-                can_manage_chat=True,
-                can_manage_video_chats=True,
-                can_manage_voice_chats=True,
-                can_post_messages=False,
-                can_edit_messages=False,
-                can_pin_messages=True
-            )
-            
-            # Set custom title
-            try:
-                await self.bot.set_chat_administrator_custom_title(
-                    chat_id=chat_id,
-                    user_id=userbot_user_id,
-                    custom_title="AutoReq UserBot"
-                )
-            except Exception as e:
-                print(f"Could not set custom title: {e}")
-            
-            print(f"Successfully promoted userbot in {chat_id}")
-            return True
-            
-        except Exception as e:
-            print(f"Error promoting userbot: {e}")
-            return False
-    
-    async def check_bot_permissions(self, chat_id: int):
-        """Check if bot has required admin permissions"""
-        try:
-            bot_member = await self.bot.get_chat_member(chat_id, self.bot.id)
-            
-            if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
-                return False, "Bot is not admin in this chat"
-            
-            required_permissions = [
-                ("can_promote_members", "Promote members"),
-                ("can_invite_users", "Invite users"),
-            ]
-            
-            missing_permissions = []
-            for perm, name in required_permissions:
-                if not getattr(bot_member, perm, False):
-                    missing_permissions.append(name)
-            
-            if missing_permissions:
-                return False, f"Missing permissions: {', '.join(missing_permissions)}"
-            
-            return True, "All permissions available"
-            
-        except Exception as e:
-            return False, f"Error checking permissions: {e}"
-    
-    async def get_bot_permissions_in_channel(self, chat_id: int):
-        """Get detailed bot permissions in a specific channel"""
-        try:
-            bot_member = await self.bot.get_chat_member(chat_id, self.bot.id)
-            
-            permissions_info = f"Bot status: {bot_member.status}\n"
-            
-            if bot_member.status == ChatMemberStatus.ADMINISTRATOR:
-                permissions_info += "Admin permissions:\n"
-                permissions_info += f"- Promote members: {bot_member.can_promote_members}\n"
-                permissions_info += f"- Invite users: {bot_member.can_invite_users}\n"
-                permissions_info += f"- Delete messages: {bot_member.can_delete_messages}\n"
-                permissions_info += f"- Restrict members: {bot_member.can_restrict_members}\n"
-                permissions_info += f"- Pin messages: {bot_member.can_pin_messages}\n"
-                permissions_info += f"- Manage chat: {bot_member.can_manage_chat}\n"
-            else:
-                permissions_info += "Bot is not an administrator\n"
-            
-            return permissions_info
-            
-        except Exception as e:
-            return f"Error getting permissions: {e}"
-
-# Global instance
+# This will be set by main.py
 promotion_service = None
 
-def init_promotion_service(bot_client: Bot):
-    global promotion_service
-    promotion_service = PromotionService(bot_client)
-    print(f"✅ Promotion service initialized with bot ID: {bot_client.id}")
-    return promotion_service
+async def bot_added_to_chat_handler(update: types.ChatMemberUpdated):
+    """Handler for when bot is added to group/channel"""
+    try:
+        chat = update.chat
+        user = update.from_user
+        
+        print(f"Bot added to {chat.title} (ID: {chat.id}) by {user.id}")
+        
+        # Determine chat type
+        if chat.type in ["group", "supergroup"]:
+            chat_type = "group"
+        elif chat.type == "channel":
+            chat_type = "channel"
+        else:
+            return
+        
+        # Create invite link for the chat
+        invite_link = None
+        try:
+            invite = await update.bot.create_chat_invite_link(
+                chat.id, 
+                name="AutoReq UserBot Join",
+                creates_join_request=False,
+                expire_date=None,
+                member_limit=1
+            )
+            invite_link = invite.invite_link
+            print(f"Created invite link: {invite_link}")
+        except Exception as e:
+            print(f"Could not create invite link: {e}")
+        
+        # Save to database
+        chat_data = {
+            "chat_id": str(chat.id),
+            "title": chat.title,
+            "chat_type": chat_type,
+            "added_by": user.id,
+            "invite_link": invite_link,
+            "is_active": True,
+            "userbot_setup": False
+        }
+        
+        result = db.add_chat(chat_data)
+        
+        if result:
+            print(f"Chat {chat.title} saved to database")
+            
+            # If it's a channel and userbot is connected, setup userbot
+            if chat_type == "channel" and userbot_client.is_connected and invite_link:
+                print(f"Setting up userbot for channel {chat.id}")
+                
+                # Step 1: Userbot joins channel
+                join_success = await userbot_client.setup_channel(chat.id, invite_link)
+                
+                if join_success and promotion_service:
+                    # Step 2: Bot promotes userbot to admin
+                    userbot_info = await userbot_client.get_userbot_info()
+                    if userbot_info:
+                        promote_success = await promotion_service.promote_userbot(
+                            chat.id, 
+                            userbot_info['id']
+                        )
+                        
+                        if promote_success:
+                            # Update database with setup status
+                            db.chats.update_one(
+                                {"chat_id": str(chat.id)},
+                                {"$set": {"userbot_setup": True}}
+                            )
+                            print(f"Userbot setup completed for {chat.title}")
+        
+    except Exception as e:
+        print(f"Error in bot_added_to_chat: {e}")
+
+async def chat_join_request_handler(update: types.ChatJoinRequest):
+    """Handler for join requests"""
+    try:
+        chat = update.chat
+        user = update.from_user
+        
+        print(f"Join request from {user.id} in {chat.title}")
+        
+        # Save to database
+        request_data = {
+            "chat_id": str(chat.id),
+            "user_id": user.id,
+            "username": user.username or "",
+            "first_name": user.first_name or "",
+            "status": "pending"
+        }
+        db.add_request(request_data)
+        
+        # Update stats
+        stats = db.get_chat_stats(str(chat.id))
+        db.update_chat_stats(str(chat.id), {
+            "total_requests": stats["total_requests"] + 1,
+            "pending_requests": stats["pending_requests"] + 1
+        })
+        
+        # AUTO-ACCEPT USING BOT
+        chat_data = db.get_chat(str(chat.id))
+        if chat_data and chat_data.get('is_active', True):
+            
+            try:
+                # Aiogram 2.x method - approve the request
+                await update.approve()
+                
+                # Update database
+                db.update_request_status(str(chat.id), user.id, "accepted")
+                stats = db.get_chat_stats(str(chat.id))
+                db.update_chat_stats(str(chat.id), {
+                    "pending_requests": stats["pending_requests"] - 1,
+                    "accepted_requests": stats["accepted_requests"] + 1
+                })
+                
+                await Logger.log_request_accepted(chat.title, user.username or user.first_name)
+                print(f"✅ Request accepted via BOT for {user.id}")
+                
+            except Exception as e:
+                print(f"❌ Bot approval failed: {e}")
+        
+    except Exception as e:
+        print(f"❌ Join request error: {e}")
+
+def register_handlers(dp: Dispatcher):
+    dp.register_my_chat_member_handler(
+        bot_added_to_chat_handler, 
+        ChatMemberUpdatedFilter(IS_NOT_MEMBER >> IS_MEMBER)
+    )
+    dp.register_chat_join_request_handler(chat_join_request_handler)
