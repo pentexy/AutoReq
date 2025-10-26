@@ -1,5 +1,4 @@
 from aiogram import Dispatcher, types
-from aiogram.dispatcher import filters
 from ui.buttons import ButtonManager
 from utils.logger import Logger
 from config import config
