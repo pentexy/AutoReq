@@ -1,28 +1,29 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher
-from aiogram.filters import Command
-from aiogram.types import Message
-from aiogram.enums import ParseMode
+from aiogram import Bot, Dispatcher, types
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import filters
+from aiogram.utils import executor
 
 from config import config
 from database.operations import db
 from userbot.client import userbot_client
 from utils.logger import Logger
 
-# Initialize bot first
-bot = Bot(token=config.BOT_TOKEN)
-dp = Dispatcher()
-
-# Import and initialize promotion service AFTER bot is defined
-from services.promotion import init_promotion_service
-promotion_service = init_promotion_service(bot)
-
-# Import handlers AFTER promotion_service is initialized
+# Import handlers
 from handlers.start import router as start_router
 from handlers.admin import router as admin_router
 from handlers.callback import router as callback_router
 from handlers.group_events import router as group_router
+
+# Initialize bot
+bot = Bot(token=config.BOT_TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
+
+# Import and initialize promotion service AFTER bot is defined
+from services.promotion import init_promotion_service
+promotion_service = init_promotion_service(bot)
 
 # Set promotion_service in handlers
 import handlers.admin
@@ -39,20 +40,20 @@ dp.include_router(group_router)
 # Set bot for logger
 Logger.set_bot(bot)
 
-@dp.message(Command("test"))
-async def test_handler(message: Message):
-    await message.answer("✅ Bot is working!", parse_mode=ParseMode.HTML)
+@dp.message_handler(commands=['test'])
+async def test_handler(message: types.Message):
+    await message.answer("✅ Bot is working!")
 
-@dp.message(Command("check_promotion"))
-async def check_promotion_handler(message: Message):
+@dp.message_handler(commands=['check_promotion'])
+async def check_promotion_handler(message: types.Message):
     """Check if promotion service is working"""
     if promotion_service:
         await message.answer("✅ Promotion service is working")
     else:
         await message.answer("❌ Promotion service is not available")
 
-@dp.message(Command("help"))
-async def help_handler(message: Message):
+@dp.message_handler(commands=['help'])
+async def help_handler(message: types.Message):
     """Show available commands"""
     help_text = """
 <b>Available Commands:</b>
@@ -69,23 +70,16 @@ async def help_handler(message: Message):
 <code>/channel_info</code> - Check channel status
 <code>/userbot_info</code> - Get userbot information
 """
-    await message.answer(help_text, parse_mode=ParseMode.HTML)
+    await message.answer(help_text, parse_mode='HTML')
 
-async def main():
+async def on_startup(dp):
     print("🚀 Starting Auto Request Acceptor Bot...")
-    
     # Start userbot
     await userbot_client.start()
-    
-    # Start main bot
-    try:
-        await dp.start_polling(bot)
-        print("✅ Bot started successfully")
-    except Exception as e:
-        print(f"❌ Bot error: {e}")
-    finally:
-        await bot.session.close()
+
+async def on_shutdown(dp):
+    await bot.session.close()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    executor.start_polling(dp, on_startup=on_startup, on_shutdown=on_shutdown)
